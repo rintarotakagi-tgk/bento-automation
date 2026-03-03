@@ -1,0 +1,29 @@
+name: お弁当注文リスト自動Slack通知
+
+on:
+  schedule:
+    - cron: "20 0 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  print-bento-orders:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 依存パッケージインストール
+        run: pip install -r requirements.txt
+
+      - name: スクリプト実行
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python main.py

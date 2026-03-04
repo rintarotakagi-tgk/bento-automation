@@ -117,8 +117,8 @@ def create_excel(orders, filepath):
                 right=medium if col == 4 else thin,
                 top=thin, bottom=thin
             )
-            cell.alignment = Alignment(horizontal=align, vertical="center", indent=1 if align == "left" else 0)
-        ws.row_dimensions[row_num].height = 24
+            cell.alignment = Alignment(horizontal=align, vertical="center", indent=1 if align == "left" else 0, wrap_text=True if col == 3 else False)
+        ws.row_dimensions[row_num].height = 40
 
     total_row = last_data_row + 1
     ws.merge_cells(f"A{total_row}:C{total_row}")
@@ -131,10 +131,10 @@ def create_excel(orders, filepath):
     ws.cell(row=total_row, column=4).border = Border(left=thin, right=medium, top=thin, bottom=medium)
     ws.row_dimensions[total_row].height = 22
 
-    ws.column_dimensions["A"].width = 8
-    ws.column_dimensions["B"].width = 24
-    ws.column_dimensions["C"].width = 40
-    ws.column_dimensions["D"].width = 8
+    ws.column_dimensions["A"].width = 7
+    ws.column_dimensions["B"].width = 22
+    ws.column_dimensions["C"].width = 45
+    ws.column_dimensions["D"].width = 7
 
     ws.print_area = f"A1:D{total_row}"
 

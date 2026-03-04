@@ -69,6 +69,7 @@ def create_excel(orders, filepath):
     ws.page_margins.footer = 0.3
 
     ws.sheet_view.showGridLines = False
+    ws.print_options.horizontalCentered = True
 
     header_fill = PatternFill("solid", start_color="2F5496")
     alt_fill = PatternFill("solid", start_color="DCE6F1")
@@ -84,6 +85,7 @@ def create_excel(orders, filepath):
     title_cell.alignment = Alignment(horizontal="center", vertical="center")
     title_cell.fill = gray_fill
     title_cell.border = Border(left=medium, right=medium, top=medium, bottom=thin)
+    ws["D1"].border = Border(left=thin, right=medium, top=medium, bottom=thin)
     ws.row_dimensions[1].height = 36
 
     headers = ["No.", "注文者名", "注文内容", "✓"]

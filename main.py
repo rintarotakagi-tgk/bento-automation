@@ -1,8 +1,12 @@
 import os
 import requests
 from datetime import date
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
+from reportlab.lib.colors import HexColor, white
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 NOTION_API_KEY = os.environ["NOTION_API_KEY"]
 NOTION_DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
@@ -11,6 +15,10 @@ SLACK_CHANNEL = os.environ["SLACK_CHANNEL"]
 
 TODAY = date.today().isoformat()
 TODAY_LABEL = date.today().strftime("%Y年%m月%d日")
+
+# フォント登録（環境に合わせてパスを変更してください）
+FONT_PATH = "/usr/share/fonts/opentype/ipafont-gothic/ipagp.ttf"
+pdfmetrics.registerFont(TTFont("IPAGothic", FONT_PATH))
 
 
 def fetch_orders():
@@ -50,98 +58,89 @@ def fetch_orders():
     return orders
 
 
-def create_excel(orders, filepath):
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "お弁当注文"
+def create_pdf(orders, filepath):
+    w, h = A4
+    c = canvas.Canvas(filepath, pagesize=A4)
 
-    ws.page_setup.paperSize = ws.PAPERSIZE_A4
-    ws.page_setup.orientation = "portrait"
-    ws.page_setup.fitToPage = True
-    ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 0
+    # 色定義
+    header_bg = HexColor("#2F5496")
+    alt_bg = HexColor("#DCE6F1")
+    gray_bg = HexColor("#F2F2F2")
+    border_color = HexColor("#AAAAAA")
 
-    ws.page_margins.left = 0.5
-    ws.page_margins.right = 0.5
-    ws.page_margins.top = 0.75
-    ws.page_margins.bottom = 0.75
-    ws.page_margins.header = 0.3
-    ws.page_margins.footer = 0.3
+    # 列定義（ページ中央配置）
+    col_widths = [12 * mm, 45 * mm, 95 * mm, 12 * mm]
+    table_width = sum(col_widths)
+    margin_left = (w - table_width) / 2
+    col_x = [margin_left]
+    for cw in col_widths[:-1]:
+        col_x.append(col_x[-1] + cw)
 
-    ws.sheet_view.showGridLines = False
-    ws.print_options.horizontalCentered = True
+    row_height = 7 * mm
+    header_height = 8 * mm
+    title_height = 12 * mm
 
-    header_fill = PatternFill("solid", start_color="2F5496")
-    alt_fill = PatternFill("solid", start_color="DCE6F1")
-    white_fill = PatternFill("solid", start_color="FFFFFF")
-    gray_fill = PatternFill("solid", start_color="F2F2F2")
-    thin = Side(style="thin", color="AAAAAA")
-    medium = Side(style="medium", color="2F5496")
+    y = h - 20 * mm
 
-    ws.merge_cells("A1:D1")
-    title_cell = ws["A1"]
-    title_cell.value = f"お弁当注文リスト　{TODAY_LABEL}"
-    title_cell.font = Font(name="メイリオ", bold=True, size=16)
-    title_cell.alignment = Alignment(horizontal="center", vertical="center")
-    title_cell.fill = gray_fill
-    title_cell.border = Border(left=medium, right=medium, top=medium, bottom=thin)
-    ws["D1"].border = Border(left=thin, right=medium, top=medium, bottom=thin)
-    ws.row_dimensions[1].height = 36
+    # --- タイトル行 ---
+    c.setFillColor(gray_bg)
+    c.rect(margin_left, y - title_height, table_width, title_height, fill=1, stroke=0)
+    c.setStrokeColor(header_bg)
+    c.setLineWidth(1.5)
+    c.rect(margin_left, y - title_height, table_width, title_height, fill=0, stroke=1)
+    c.setFillColor(HexColor("#333333"))
+    c.setFont("IPAGothic", 14)
+    c.drawCentredString(margin_left + table_width / 2, y - title_height + 3.5 * mm, f"お弁当注文リスト　{TODAY_LABEL}")
+    y -= title_height
 
+    # --- ヘッダー行 ---
+    c.setFillColor(header_bg)
+    c.rect(margin_left, y - header_height, table_width, header_height, fill=1, stroke=0)
+    c.setStrokeColor(border_color)
+    c.setLineWidth(0.5)
+    c.setFont("IPAGothic", 9)
+    c.setFillColor(white)
     headers = ["No.", "注文者名", "注文内容", "✓"]
-    ws.append(headers)
-    header_row = 2
-    for col, h in enumerate(headers, 1):
-        cell = ws.cell(row=header_row, column=col)
-        cell.value = h
-        cell.font = Font(name="メイリオ", bold=True, color="FFFFFF", size=11)
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = Border(
-            left=medium if col == 1 else thin,
-            right=medium if col == 4 else thin,
-            top=thin, bottom=thin
-        )
-    ws.row_dimensions[header_row].height = 24
+    for i, (hdr, cx, cw) in enumerate(zip(headers, col_x, col_widths)):
+        c.drawCentredString(cx + cw / 2, y - header_height + 2.5 * mm, hdr)
+        c.rect(cx, y - header_height, cw, header_height, fill=0, stroke=1)
+    y -= header_height
 
-    last_data_row = header_row
+    # --- データ行 ---
+    c.setFont("IPAGothic", 9)
     for i, order in enumerate(orders, 1):
-        row_num = header_row + i
-        last_data_row = row_num
-        fill = alt_fill if i % 2 == 0 else white_fill
-        for col, (val, align) in enumerate(zip([i, order["name"], order["item"], ""], ["center", "left", "left", "center"]), 1):
-            cell = ws.cell(row=row_num, column=col)
-            cell.value = val
-            cell.font = Font(name="メイリオ", size=11)
-            cell.fill = fill
-            cell.border = Border(
-                left=medium if col == 1 else thin,
-                right=medium if col == 4 else thin,
-                top=thin, bottom=thin
-            )
-            cell.alignment = Alignment(horizontal=align, vertical="center", indent=1 if align == "left" else 0, wrap_text=True if col == 3 else False)
-        ws.row_dimensions[row_num].height = 25
+        fill = alt_bg if i % 2 == 0 else white
+        c.setFillColor(fill)
+        c.rect(margin_left, y - row_height, table_width, row_height, fill=1, stroke=0)
+        c.setStrokeColor(border_color)
+        c.setLineWidth(0.5)
 
-    total_row = last_data_row + 1
-    ws.merge_cells(f"A{total_row}:C{total_row}")
-    ws[f"A{total_row}"].value = f"合計：{len(orders)} 名"
-    ws[f"A{total_row}"].font = Font(name="メイリオ", bold=True, size=11)
-    ws[f"A{total_row}"].alignment = Alignment(horizontal="right", vertical="center")
-    ws[f"A{total_row}"].fill = gray_fill
-    ws[f"A{total_row}"].border = Border(left=medium, right=thin, top=thin, bottom=medium)
-    ws.cell(row=total_row, column=4).fill = gray_fill
-    ws.cell(row=total_row, column=4).border = Border(left=thin, right=medium, top=thin, bottom=medium)
-    ws.row_dimensions[total_row].height = 22
+        values = [str(i), order["name"], order["item"], ""]
+        aligns = ["center", "left", "left", "center"]
+        for val, align, cx, cw in zip(values, aligns, col_x, col_widths):
+            c.rect(cx, y - row_height, cw, row_height, fill=0, stroke=1)
+            c.setFillColor(HexColor("#333333"))
+            text_y = y - row_height + 2 * mm
+            if align == "center":
+                c.drawCentredString(cx + cw / 2, text_y, val)
+            else:
+                c.drawString(cx + 2 * mm, text_y, val)
+        y -= row_height
 
-    ws.column_dimensions["A"].width = 7
-    ws.column_dimensions["B"].width = 22
-    ws.column_dimensions["C"].width = 45
-    ws.column_dimensions["D"].width = 7
+    # --- 合計行 ---
+    total_height = 7 * mm
+    c.setFillColor(gray_bg)
+    c.rect(margin_left, y - total_height, table_width, total_height, fill=1, stroke=0)
+    c.setStrokeColor(header_bg)
+    c.setLineWidth(1.5)
+    c.rect(margin_left, y - total_height, table_width, total_height, fill=0, stroke=1)
+    c.setFillColor(HexColor("#333333"))
+    c.setFont("IPAGothic", 9)
+    total_text = f"合計：{len(orders)} 名"
+    c.drawRightString(col_x[3] - 2 * mm, y - total_height + 2 * mm, total_text)
 
-    ws.print_area = f"A1:D{total_row}"
-
-    wb.save(filepath)
-    print(f"Excel作成完了: {filepath}")
+    c.save()
+    print(f"PDF作成完了: {filepath}")
 
 
 def upload_to_slack(filepath):
@@ -197,9 +196,9 @@ def main():
         print("注文なし通知を送信しました。")
         return
 
-    excel_path = f"/tmp/bento_{TODAY}.xlsx"
-    create_excel(orders, excel_path)
-    upload_to_slack(excel_path)
+    pdf_path = f"/tmp/bento_{TODAY}.pdf"
+    create_pdf(orders, pdf_path)
+    upload_to_slack(pdf_path)
 
     print("=== 完了 ===")
 

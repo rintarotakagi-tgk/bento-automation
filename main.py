@@ -120,7 +120,7 @@ def create_excel(orders, filepath):
                 top=thin, bottom=thin
             )
             cell.alignment = Alignment(horizontal=align, vertical="center", indent=1 if align == "left" else 0, wrap_text=True if col == 3 else False)
-        ws.row_dimensions[row_num].height = 40
+        ws.row_dimensions[row_num].height = 25
 
     total_row = last_data_row + 1
     ws.merge_cells(f"A{total_row}:C{total_row}")

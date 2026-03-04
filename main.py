@@ -131,10 +131,10 @@ def create_excel(orders, filepath):
     ws.cell(row=total_row, column=4).border = Border(left=thin, right=medium, top=thin, bottom=medium)
     ws.row_dimensions[total_row].height = 22
 
-    ws.column_dimensions["A"].width = 6
-    ws.column_dimensions["B"].width = 18
-    ws.column_dimensions["C"].width = 30
-    ws.column_dimensions["D"].width = 6
+    ws.column_dimensions["A"].width = 8
+    ws.column_dimensions["B"].width = 24
+    ws.column_dimensions["C"].width = 40
+    ws.column_dimensions["D"].width = 8
 
     ws.print_area = f"A1:D{total_row}"
 

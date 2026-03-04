@@ -55,64 +55,97 @@ def create_excel(orders, filepath):
     ws = wb.active
     ws.title = "お弁当注文"
 
+    # A4印刷設定
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
     ws.page_setup.orientation = "portrait"
     ws.page_setup.fitToPage = True
-    ws.page_margins.left = 0.75
-    ws.page_margins.right = 0.75
-    ws.page_margins.top = 1.0
-    ws.page_margins.bottom = 1.0
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
 
+    # 余白（インチ）
+    ws.page_margins.left = 0.5
+    ws.page_margins.right = 0.5
+    ws.page_margins.top = 0.75
+    ws.page_margins.bottom = 0.75
+    ws.page_margins.header = 0.3
+    ws.page_margins.footer = 0.3
+
+    ws.sheet_view.showGridLines = False
+
+    # スタイル定義
     header_fill = PatternFill("solid", start_color="2F5496")
     alt_fill = PatternFill("solid", start_color="DCE6F1")
+    white_fill = PatternFill("solid", start_color="FFFFFF")
+    gray_fill = PatternFill("solid", start_color="F2F2F2")
     thin = Side(style="thin", color="AAAAAA")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    medium = Side(style="medium", color="2F5496")
 
+    # タイトル行
     ws.merge_cells("A1:D1")
     title_cell = ws["A1"]
     title_cell.value = f"お弁当注文リスト　{TODAY_LABEL}"
-    title_cell.font = Font(name="Arial", bold=True, size=14)
+    title_cell.font = Font(name="メイリオ", bold=True, size=16)
     title_cell.alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 30
+    title_cell.fill = gray_fill
+    title_cell.border = Border(left=medium, right=medium, top=medium, bottom=thin)
+    ws.row_dimensions[1].height = 36
 
-    ws.append([])
-
+    # ヘッダー行
     headers = ["No.", "注文者名", "注文内容", "✓"]
     ws.append(headers)
-    header_row = 3
+    header_row = 2
     for col, h in enumerate(headers, 1):
         cell = ws.cell(row=header_row, column=col)
         cell.value = h
-        cell.font = Font(name="Arial", bold=True, color="FFFFFF", size=11)
+        cell.font = Font(name="メイリオ", bold=True, color="FFFFFF", size=11)
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = border
-    ws.row_dimensions[header_row].height = 22
+        cell.border = Border(
+            left=medium if col == 1 else thin,
+            right=medium if col == 4 else thin,
+            top=thin, bottom=thin
+        )
+    ws.row_dimensions[header_row].height = 24
 
+    # データ行
+    last_data_row = header_row
     for i, order in enumerate(orders, 1):
         row_num = header_row + i
-        fill = alt_fill if i % 2 == 0 else PatternFill("solid", start_color="FFFFFF")
-        for col, val in enumerate([i, order["name"], order["item"], ""], 1):
+        last_data_row = row_num
+        fill = alt_fill if i % 2 == 0 else white_fill
+        for col, (val, align) in enumerate(zip([i, order["name"], order["item"], ""], ["center", "left", "left", "center"]), 1):
             cell = ws.cell(row=row_num, column=col)
             cell.value = val
-            cell.font = Font(name="Arial", size=11)
+            cell.font = Font(name="メイリオ", size=11)
             cell.fill = fill
-            cell.border = border
-            cell.alignment = Alignment(horizontal="center" if col in [1, 4] else "left", vertical="center")
-        ws.row_dimensions[row_num].height = 22
+            cell.border = Border(
+                left=medium if col == 1 else thin,
+                right=medium if col == 4 else thin,
+                top=thin, bottom=thin
+            )
+            cell.alignment = Alignment(horizontal=align, vertical="center", indent=1 if align == "left" else 0)
+        ws.row_dimensions[row_num].height = 24
 
-    total_row = header_row + len(orders) + 1
-    ws.merge_cells(f"A{total_row}:B{total_row}")
-    total_cell = ws[f"A{total_row}"]
-    total_cell.value = f"合計：{len(orders)} 名"
-    total_cell.font = Font(name="Arial", bold=True, size=11)
-    total_cell.alignment = Alignment(horizontal="right", vertical="center")
-    ws.row_dimensions[total_row].height = 20
+    # 合計行
+    total_row = last_data_row + 1
+    ws.merge_cells(f"A{total_row}:C{total_row}")
+    ws[f"A{total_row}"].value = f"合計：{len(orders)} 名"
+    ws[f"A{total_row}"].font = Font(name="メイリオ", bold=True, size=11)
+    ws[f"A{total_row}"].alignment = Alignment(horizontal="right", vertical="center")
+    ws[f"A{total_row}"].fill = gray_fill
+    ws[f"A{total_row}"].border = Border(left=medium, right=thin, top=thin, bottom=medium)
+    ws.cell(row=total_row, column=4).fill = gray_fill
+    ws.cell(row=total_row, column=4).border = Border(left=thin, right=medium, top=thin, bottom=medium)
+    ws.row_dimensions[total_row].height = 22
 
-    ws.column_dimensions["A"].width = 7
-    ws.column_dimensions["B"].width = 20
-    ws.column_dimensions["C"].width = 35
-    ws.column_dimensions["D"].width = 8
+    # 列幅
+    ws.column_dimensions["A"].width = 6
+    ws.column_dimensions["B"].width = 18
+    ws.column_dimensions["C"].width = 30
+    ws.column_dimensions["D"].width = 6
+
+    # 印刷範囲
+    ws.print_area = f"A1:D{total_row}"
 
     wb.save(filepath)
     print(f"Excel作成完了: {filepath}")
@@ -122,7 +155,6 @@ def upload_to_slack(filepath):
     filename = os.path.basename(filepath)
     headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
 
-    # Step1: アップロードURLを取得
     res = requests.get(
         "https://slack.com/api/files.getUploadURLExternal",
         headers=headers,
@@ -136,12 +168,10 @@ def upload_to_slack(filepath):
     upload_url = data["upload_url"]
     file_id = data["file_id"]
 
-    # Step2: ファイルをアップロード
     with open(filepath, "rb") as f:
         res = requests.post(upload_url, files={"file": f})
     res.raise_for_status()
 
-    # Step3: チャンネルに投稿
     res = requests.post(
         "https://slack.com/api/files.completeUploadExternal",
         headers={**headers, "Content-Type": "application/json"},

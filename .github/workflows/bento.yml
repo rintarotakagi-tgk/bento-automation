@@ -1,8 +1,6 @@
 name: bento-automation
 
 on:
-  schedule:
-    - cron: "20 0 * * 1-5"
   workflow_dispatch:
 
 jobs:
